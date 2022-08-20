@@ -66,11 +66,7 @@ class Task:
         self.log_file = get_log_file_path(self.id)
         
         log_file = open(self.log_file, "w")
-        log_file.write(f'EXECUTE TIME: {self.start_time}\n')
-        if assigned_gpu is not None:
-            log_file.write(f'GPU: {self.assigned_gpu}\n')
-        log_file.write(f'CMD: {self.cmd}\n')
-        log_file.write(f'\n')
+        log_file.write(self._meta_str())
         log_file.flush()
         log_file.close()
 
@@ -93,6 +89,8 @@ class Task:
         mutex.release()
 
         exit_code = self.executed_proc.wait()
+
+        
         log_file.close()
 
         mutex.acquire()
@@ -109,7 +107,20 @@ class Task:
 
         return self.executed_proc
 
-                
+    def _meta_str(self):
+        ret_str = "-" * 50 + "\n"
+        ret_str += "Task ID: {}\n".format(self.id)
+        ret_str += "Command: {}\n".format(self.cmd)
+        if self.req_memory > 0:
+            ret_str += "Type: GPU ({} MB)\n".format(self.req_memory)
+        else:
+            ret_str += "Type: CPU\n"
+        if self.start_time is not None:
+            ret_str += "Execute Time: {}\n".format(self.start_time)
+        if self.assigned_gpu is not None:
+            ret_str += "Assigned GPU: {}\n".format(self.assigned_gpu)
+        ret_str += "_" * 50 + "\n\n"
+        return ret_str
     
     def __str__(self):
         return "Task {}: {}".format(self.id, self.cmd)

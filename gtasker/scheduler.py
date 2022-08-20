@@ -8,6 +8,11 @@ import time
 import subprocess
 import json
 
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s %(thread)s %(funcName)s %(message)s"
+)
 
 # class QueueThread (threading.Thread):
 #     def __init__(self, tq):
@@ -67,8 +72,9 @@ class TaskScheduler:
         return ret_str
 
     def add_task(self, cmd, req_memory, path, req_gpu_index, pre_reqt):
-        
+        logging.info(f"Add task: {cmd}")
         self.mutex.acquire()
+        logging.info(f"Add Task {self.cur_id}")
         self.cur_id += 1
         
         if pre_reqt != "":
@@ -201,19 +207,30 @@ class TaskScheduler:
 
 
     def _serve(self):
+        serve_cnt = 0
         while True:
             self.mutex.acquire()
+            serve_cnt += 1
+            logging.info(f"Lock Acquired... Serve Count: {serve_cnt}")
             task_id, assigned_gpu = self._find_task_to_run()
             self.mutex.release()
-            if task_id is None:
-                time.sleep(1)
-                continue
-            self._run_task(task_id, assigned_gpu)
+
+            if serve_cnt > 10:
+                return 
+
+            if task_id is not None:
+                logging.info(f"Task {task_id} Found. Assigned GPU: {assigned_gpu}")
+                self._run_task(task_id, assigned_gpu)
+
+            time.sleep(1)
+
+            
 
 
     def serve_forever(self):
         t = threading.Thread(target=self._serve)
         t.start()
+
     # def kill_task(self, id):
     #     self.lock.acquire()
     #     task = self.find_task_with_id(self.running_tasks, id)
