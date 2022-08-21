@@ -6,7 +6,7 @@ from pprint import pprint
 from typing import List 
 import psutil
 
-GTASTER_ROOT = '/home/fangyan/gtasker_logs/'
+GTASTER_ROOT = './gtasker_logs/'
 
 def execute_cmd(cmd: str, timeout: int=60) -> bytes or None:
     try:

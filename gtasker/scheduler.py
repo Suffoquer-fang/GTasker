@@ -62,6 +62,8 @@ class TaskScheduler:
 
         self.tasks = {}
 
+        self.serving = False
+
 
     def get_status(self):
         # tasks status string
@@ -207,16 +209,10 @@ class TaskScheduler:
 
 
     def _serve(self):
-        serve_cnt = 0
-        while True:
+        while self.serving:
             self.mutex.acquire()
-            serve_cnt += 1
-            logging.info(f"Lock Acquired... Serve Count: {serve_cnt}")
             task_id, assigned_gpu = self._find_task_to_run()
             self.mutex.release()
-
-            if serve_cnt > 10:
-                return 
 
             if task_id is not None:
                 logging.info(f"Task {task_id} Found. Assigned GPU: {assigned_gpu}")
@@ -228,9 +224,18 @@ class TaskScheduler:
 
 
     def serve_forever(self):
+        self.serving = True
         t = threading.Thread(target=self._serve)
         t.start()
 
+    def shutdown(self):
+        self.serving = False
+
+    def _undone_task_count(self):
+        return sum([1 for task_id, task in self.tasks.items() if task.status not in [TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.KILLED]])
+
+    def ready_to_shutdown(self):
+        return self._undone_task_count() == 0
     # def kill_task(self, id):
     #     self.lock.acquire()
     #     task = self.find_task_with_id(self.running_tasks, id)
