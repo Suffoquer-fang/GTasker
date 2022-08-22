@@ -1,4 +1,4 @@
-from gtasker.utils import execute_cmd, get_children_pids
+from gtasker.utils import execute_cmd, get_children_pids, parse_str_to_list
 import psutil
 import os
 
@@ -20,4 +20,14 @@ def test_get_children_pids():
     print(output)
     assert len(output) == 0
 
+def test_parse_str_to_list():
+    str_ = '1,2,3'
+    assert parse_str_to_list(str_) == ['1', '2', '3']
+    assert parse_str_to_list(str_, int) == [1, 2, 3]
+
+    str_ = ''
+    assert parse_str_to_list(str_) == []
+    assert parse_str_to_list(str_, int) == []
+
 # test_get_children_pids()
+test_parse_str_to_list()

@@ -3,7 +3,7 @@ import subprocess
 import json
 from collections import defaultdict
 from pprint import pprint
-from typing import List 
+from typing import List, Callable
 import psutil
 
 GTASTER_ROOT = './gtasker_logs/'
@@ -28,3 +28,12 @@ def get_children_pids(ppid: int, include_self: bool=False) -> List:
 
 def get_log_file_path(task_id: int) -> str:
     return os.path.join(GTASTER_ROOT, f"{task_id}.log")
+
+
+def parse_str_to_list(str_: str, map_func: Callable=None) -> List:
+    if str_ == '':
+        return []
+    if map_func is not None:
+        return list(map(map_func, str_.split(',')))
+    else:
+        return list(str_.split(','))

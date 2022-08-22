@@ -73,4 +73,4 @@ def test_find_task_to_run_cpu():
 # test_add_task_with_pre_reqt()
 # test_run_task()
 # test_find_task_to_run()
-# test_run_task_with_reqt_gpu_index()
+test_run_task_with_reqt_gpu_index()
