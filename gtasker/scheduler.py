@@ -1,7 +1,7 @@
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import os
 from .task import Task, TaskStatus
-from .utils import get_children_pids, parse_str_to_list
+from .utils import get_children_pids, parse_str_to_list, follow, read_last_lines, SERVER_INTERVAL
 from .tracker import GPUTracker
 import threading
 import time
@@ -109,7 +109,7 @@ class TaskScheduler:
         return ret_msg
 
 
-    def restart_task(self, task_id):
+    def restart_task(self, task_id, in_place=False):
         self.mutex.acquire()
         if task_id in self.tasks:
             # clone task
@@ -122,12 +122,70 @@ class TaskScheduler:
                 pre_reqt=self.tasks[task_id].pre_reqt,
                 priority=self.tasks[task_id].priority
             )
-            self.tasks[task_id] = new_task
-            ret_msg = f"Task {task_id} Restarted"
+            if in_place:
+                self.tasks[task_id] = new_task
+                ret_msg = f"Task {task_id} Restarted In Place"
+            else:
+                self.cur_id += 1
+                new_task.id = self.cur_id
+                self.tasks[self.cur_id] = new_task
+
+                # modify pre-requisit tasks
+                for id, task in self.tasks.items():
+                    task.modify_pre_reqt(task_id, self.cur_id)
+                
+                ret_msg = f"Task {task_id} Restarted As New Task ({self.cur_id})"
         else:
             ret_msg = f"Task {task_id} Not Found"
         
         self.mutex.release()
+        return ret_msg
+
+    def clean_task(self):
+        # remove all success tasks, modify the pre-requisit tasks of pending tasks
+        self.mutex.acquire()
+        success_task_ids = [id for id, task in self.tasks.items() if task.status == TaskStatus.SUCCESS]
+        for id in success_task_ids:
+            del self.tasks[id]
+        
+        for id, task in self.tasks.items():
+            if task.status == TaskStatus.PENDING:
+                for pre_id in task.pre_reqt:
+                    if pre_id in success_task_ids:
+                        task.modify_pre_reqt(pre_id, -1)
+
+        self.mutex.release()
+
+        ret_msg = f"{len(success_task_ids)} Success Tasks Removed"
+        return ret_msg
+
+
+    def follow_task(self, task_id):
+        logging.info(f"Follow task: {task_id}")
+        if task_id in self.tasks:
+            if self.tasks[task_id].status == TaskStatus.RUNNING:
+                task_log_file = self.tasks[task_id].log_file
+                stop_func = lambda: (task_id not in self.tasks or self.tasks[task_id].status != TaskStatus.RUNNING)
+                follow(task_log_file, stop_func=stop_func)
+                ret_msg = f"Task {task_id} Follow Done"
+            else:
+                ret_msg = f"Task {task_id} Not Running"
+        else:
+            ret_msg = f"Task {task_id} Not Found"
+        
+        return ret_msg
+
+    def log_task(self, task_id):
+        logging.info(f"Log task: {task_id}")
+        if task_id in self.tasks:
+            if self.tasks[task_id].status == TaskStatus.RUNNING:
+                task_log_file = self.tasks[task_id].log_file
+                ret_msg = read_last_lines(task_log_file, 10)
+            else:
+                ret_msg = f"Task {task_id} Not Running"
+        else:
+            ret_msg = f"Task {task_id} Not Found"
+        
         return ret_msg
 
 
@@ -174,10 +232,12 @@ class TaskScheduler:
                 logging.info(f"Task {task_id} Found. Assigned GPU: {assigned_gpu}")
                 self._run_task(task_id, assigned_gpu)
 
-            time.sleep(1)
+            time.sleep(SERVER_INTERVAL)
 
             
-
+    def _kill_all_tasks(self):
+        for task_id, task in self.tasks.items():
+            self.kill_task(task_id)
 
     def serve_forever(self):
         self.serving = True
@@ -186,6 +246,7 @@ class TaskScheduler:
 
     def shutdown(self):
         self.serving = False
+        self._kill_all_tasks()
 
     def _undone_task_count(self):
         return sum([1 for task_id, task in self.tasks.items() if task.status not in [TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.KILLED]])

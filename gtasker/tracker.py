@@ -7,6 +7,10 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(thread)s %(funcName)s %(message)s"
+)
 
 class GPUTracker:
     # this class is used to track the GPU usage
@@ -34,6 +38,7 @@ class GPUTracker:
         return gpu_info
 
     def book_memory(self, gpu_index, gpu_mem, pid):
+        logging.debug(f"Book memory: {gpu_index}, {gpu_mem}, {pid}")
         self.booked_memory[gpu_index][pid] = gpu_mem
 
     def _flush_booked_memory(self):
@@ -53,12 +58,16 @@ class GPUTracker:
                     if child_pid in busy_pids:
                         pids_to_remove.add((index, pid))
         
+        logging.debug(f"Remove {len(pids_to_remove)} processes from the booked memory")
+        
         for index, pid in pids_to_remove:
+            logging.debug(f"Remove {pid}, {index} from the booked memory")
             del self.booked_memory[index][pid]
         
         
 
     def unbook_memory(self, gpu_index, pid):
+        logging.debug(f"Unbook memory: {gpu_index}, {pid}")
         if pid in self.booked_memory[gpu_index]:
             del self.booked_memory[gpu_index][pid]
 
@@ -81,6 +90,8 @@ class GPUTracker:
         # update the free memory
         for index in self.free_memory:
             self.free_memory[index] -= sum([self.booked_memory[index][p] for p in self.booked_memory[index]])
+
+        logging.debug(f"Free memory: {self.free_memory}")
 
 
     

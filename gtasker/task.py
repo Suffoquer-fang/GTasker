@@ -3,7 +3,7 @@ import os
 import time
 import datetime
 from enum import Enum 
-from .utils import get_log_file_path
+from .utils import get_log_file_path, pack_command
 
 class TaskStatus(Enum):
     PENDING = 0 # Task is waiting to be executed
@@ -56,6 +56,13 @@ class Task:
     def check_exec_status(self):
         return self.status in [TaskStatus.PENDING, TaskStatus.STASHED]
 
+    def modify_pre_reqt(self, old_id, new_id = -1):
+        if new_id == -1:
+            self.pre_reqt = [i for i in self.pre_reqt if i != old_id]
+        else:
+            self.pre_reqt = [new_id if i == old_id else i for i in self.pre_reqt]
+
+
     def spawn(self, mutex, assigned_gpu=None, gpu_tracker=None):
         # lock
         mutex.acquire()
@@ -71,15 +78,14 @@ class Task:
         log_file.close()
 
         # execute
-        if assigned_gpu is not None:
-            env = f'export CUDA_VISIBLE_DEVICES={assigned_gpu}'
-            cmd = 'bash -c \'{}\n{}\n\''.format(env, self.cmd)
-        else:
-            cmd = self.cmd
-
-
+        cmd = pack_command(self.cmd, None)
+        
         log_file = open(self.log_file, "ab")
-        proc = subprocess.Popen(cmd, shell=True, cwd=self.path, stdout=log_file, stderr=log_file)
+
+        subprocess_env = os.environ.copy()
+        if assigned_gpu is not None:
+            subprocess_env["CUDA_VISIBLE_DEVICES"] = f"{assigned_gpu}"
+        proc = subprocess.Popen(cmd, shell=True, cwd=self.path, stdout=log_file, stderr=log_file, bufsize=1, start_new_session=True, env = subprocess_env)
 
         self.executed_proc = proc
 
@@ -90,11 +96,13 @@ class Task:
 
         exit_code = self.executed_proc.wait()
 
-        
         log_file.close()
 
         mutex.acquire()
         self.end_time = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
+
+        if assigned_gpu is not None and gpu_tracker is not None:
+            gpu_tracker.unbook_memory(assigned_gpu, proc.pid)
         
         if exit_code == 0:
             self.status = TaskStatus.SUCCESS
@@ -104,6 +112,10 @@ class Task:
             self.status = TaskStatus.FAILED
         mutex.release()
         
+        log_file = open(self.log_file, "a+")
+        log_file.write("\n"*3 + self._ending_str())
+        log_file.flush()
+        log_file.close()
 
         return self.executed_proc
 
@@ -119,6 +131,14 @@ class Task:
             ret_str += "Execute Time: {}\n".format(self.start_time)
         if self.assigned_gpu is not None:
             ret_str += "Assigned GPU: {}\n".format(self.assigned_gpu)
+        ret_str += "_" * 50 + "\n\n"
+        return ret_str
+
+    def _ending_str(self):
+        ret_str = "-" * 50 + "\n"
+        ret_str += "Task Status: {}\n".format(self.status.name)
+        if self.end_time is not None:
+            ret_str += "End Time: {}\n".format(self.end_time)
         ret_str += "_" * 50 + "\n\n"
         return ret_str
     
