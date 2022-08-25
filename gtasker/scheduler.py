@@ -242,11 +242,17 @@ class TaskScheduler:
     def serve_forever(self):
         self.serving = True
         t = threading.Thread(target=self._serve)
+        t.daemon = True
         t.start()
+        ret_msg = "Server Started"
+        return ret_msg
 
     def shutdown(self):
         self.serving = False
         self._kill_all_tasks()
+        time.sleep(1)
+        ret_msg = "Server Shutdown\nGoodbye!\n"
+        return ret_msg
 
     def _undone_task_count(self):
         return sum([1 for task_id, task in self.tasks.items() if task.status not in [TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.KILLED]])

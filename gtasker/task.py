@@ -79,13 +79,14 @@ class Task:
 
         # execute
         cmd = pack_command(self.cmd, None)
+        print('Executing: {}'.format(cmd))
         
         log_file = open(self.log_file, "ab")
 
         subprocess_env = os.environ.copy()
         if assigned_gpu is not None:
             subprocess_env["CUDA_VISIBLE_DEVICES"] = f"{assigned_gpu}"
-        proc = subprocess.Popen(cmd, shell=True, cwd=self.path, stdout=log_file, stderr=log_file, bufsize=1, start_new_session=True, env = subprocess_env)
+        proc = subprocess.Popen(cmd, shell=True, cwd=self.path, stdout=log_file, stderr=log_file, bufsize=1, start_new_session=True, env = subprocess_env, executable="/bin/bash")
 
         self.executed_proc = proc
 

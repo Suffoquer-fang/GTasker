@@ -9,6 +9,8 @@ import sys, time
 
 GTASTER_ROOT = './gtasker_logs/'
 SERVER_INTERVAL = 2
+HOST = "127.0.0.1"
+PORT = 6789
 
 def execute_cmd(cmd: str, timeout: int=60) -> bytes or None:
     try:
@@ -46,7 +48,7 @@ def pack_command(cmd, assigned_gpu):
     if assigned_gpu is not None:   
         env += f'export CUDA_VISIBLE_DEVICES={assigned_gpu}\n'
     
-    cmd = 'bash -c \'{}{}\n\''.format(env, cmd)
+    cmd = f'{env}{cmd}'
     return cmd
 
 
