@@ -18,7 +18,7 @@ setup(
         version =__version__,
         author ='Suffoquer',
         author_email ='1161290791@qq.com',
-        # url ='https://github.com/Suffoquer-fang/gtasker',
+        url ='https://github.com/Suffoquer-fang/GTasker',
         description ='Demo Package for GTasker.',
         long_description = long_description,
         long_description_content_type ="text/markdown",

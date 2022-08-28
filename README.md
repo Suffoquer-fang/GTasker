@@ -1,8 +1,10 @@
-## GTasker: A simple scheduling tool for CPU / single GPU tasks.
+# GTasker
+
+![GTasker](https://github.com/Suffoquer-fang/GTasker/blob/main/imgs/gtasker.svg)
 
 GTasker is a simple command-line scheduling tool for sequential and parallel execution of CPU or single-GPU tasks.
 
-### Installation
+## Installation
 Install from PyPI.
 ```shell
 pip install gtasker
@@ -11,7 +13,7 @@ Or install from GitHub.
 ```
 pip install git+https://github.com/suffoquer-fang/Gtasker.git@main
 ```
-### Usage
+## Usage
 ```
 usage: gta [-h] [-v] [commands]
 
@@ -32,9 +34,9 @@ commands:
     status              Display the status of the daemon
 ```
 
-### Quick Start
+## Quick Start
 
-#### Start the daemon server
+### Start the daemon server
 You have to start the daemon before using `gta` client.
 
 Run in the current shell.
@@ -46,7 +48,7 @@ Add the `-d` or `--daemon` flag to run in the background.
 gta start-server -d
 ```
 
-#### Adding new tasks
+### Adding new tasks
 
 To add a task:
 ```
@@ -65,19 +67,19 @@ For GPU tasks, you can set the required GPU memory by `--mem {memory}`. The task
 
 You may further set the required GPU device(s) by `--gpu {gpu_devices}`. The task will only be executed on the preset GPU device(s). 
 
-#### Controlling tasks
+### Controlling tasks
 
 You can kill a running task by `gta kill {task_id}`.
 
 To restart a killed (success / failed) task, you can simply use `gta restart {task_id}` and the task will be restarted as a new one. You can add `--inplace` flag to restart it in place.
 
-#### Displaying tasks
+### Displaying tasks
 
 You can use `gta status` to get the current status of task queue.
 
 To look at the output log of a task, you can use `gta log {task_id}` or `gta follow {task_id}` to follow the output of a running task.
 
-### References
+## References
 This repo is inspired by [pueue](https://github.com/Nukesor/pueue), sincerely grateful for it.
 
 
