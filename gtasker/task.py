@@ -15,7 +15,6 @@ class TaskStatus(Enum):
     LOCKED = 6 # Task is being edited 
 
 
-
 class Task:
     def __init__(self,
         id: int,                        # task id, start from 1, 0 is reserved.
@@ -31,7 +30,7 @@ class Task:
         self.req_memory = req_memory
         self.req_gpu_index = req_gpu_index
         self.pre_reqt = pre_reqt
-        self.path = path
+        self.path = os.path.abspath(path)
 
         self.priority = priority
 
@@ -86,6 +85,7 @@ class Task:
         subprocess_env = os.environ.copy()
         if assigned_gpu is not None:
             subprocess_env["CUDA_VISIBLE_DEVICES"] = f"{assigned_gpu}"
+        subprocess_env["PYTHONUNBUFFERED"] = "1"
         proc = subprocess.Popen(cmd, shell=True, cwd=self.path, stdout=log_file, stderr=log_file, bufsize=1, start_new_session=True, env = subprocess_env, executable="/bin/bash")
 
         self.executed_proc = proc
@@ -148,6 +148,24 @@ class Task:
 
     def detail_str(self):
         return self.__str__()
+
+    def _get_status_tuple(self):
+        id = str(self.id)
+        status = self.status.name
+        command = self.cmd
+        path = self.path
+        if self.req_memory > 0:
+            type_str = "GPU({} MB)".format(self.req_memory)
+            if self.assigned_gpu is not None:
+                type_str += "-{}".format(self.assigned_gpu)
+        else:
+            type_str = "CPU"
+        gpu_index = ",".join(str(i) for i in self.req_gpu_index)
+        pre_reqt = ",".join(str(i) for i in self.pre_reqt)
+        start_time = "" if self.start_time is None else self.start_time
+        end_time = "" if self.end_time is None else self.end_time
+
+        return (id, status, command, path, type_str, gpu_index, pre_reqt, start_time, end_time)
 
 
 # predefined tasks for testing

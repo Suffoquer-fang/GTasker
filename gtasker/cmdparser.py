@@ -2,13 +2,14 @@ import os
 import time
 import argparse
 from .scheduler import TaskScheduler
+from . import __version__
 import jsonrpclib 
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import sys
 import threading
 import subprocess
-from .utils import GTASTER_ROOT, HOST, PORT
-
+from .utils import GTASKER_LOG_PATH, HOST, PORT, GTASKER_SERVER_LOG_PATH, follow, get_log_file_path
+from .format_printer import format_print_task_status
 
 class MyRPCServer(SimpleJSONRPCServer):
     def __init__(self, *args, **kwargs):
@@ -24,13 +25,21 @@ class MyRPCServer(SimpleJSONRPCServer):
 
 
 def prepare_everything():
-    os.makedirs(GTASTER_ROOT, exist_ok=True)
+    os.makedirs(GTASKER_LOG_PATH, exist_ok=True)
+    print("GTASKER_LOG_PATH: %s" % GTASKER_LOG_PATH)
+    os.makedirs(GTASKER_SERVER_LOG_PATH, exist_ok=True)
+
     
 
 def start_server():
     # Create server
     os.environ["PYTHONUNBUFFERED"] = "1"
-    server = MyRPCServer((HOST, PORT))
+    try:
+        server = MyRPCServer((HOST, PORT))
+    except Exception:
+        print("Cannot start the server. Please make sure the server is not running.")
+        exit(0)
+
     print("Starting RPC server on %s:%d" % (HOST, PORT))
 
     prepare_everything()
@@ -48,6 +57,8 @@ def start_server():
     server.register_function(scheduler.ready_to_shutdown)
     server.register_function(scheduler.serve_forever)
     server.register_function(scheduler.get_status)
+    server.register_function(scheduler.task_is_running)
+    server.register_function(scheduler.task_exists)
     server.register_function(server.shutdown, "server_shutdown")
 
     # print("Starting scheduler....")
@@ -55,12 +66,17 @@ def start_server():
     ret_msg = scheduler.serve_forever()
     server.serve_forever()
     # print(ret_msg)
-    exit(0)
+    # exit(0)
 
 def fork_daemon():
-    cmd = "python3 -m gtasker.cmdparser start-server"
-    subprocess.Popen(cmd, shell=True, cwd=os.getcwd(), env=os.environ.copy(), executable="/bin/bash", start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    exit(0)
+    # cmd = "python3 -m gtasker.cmdparser start-server"
+    cmd = "gta start-server"
+    log_file = open(os.path.join(GTASKER_SERVER_LOG_PATH, "server.log"), "wb")
+    err_file = open(os.path.join(GTASKER_SERVER_LOG_PATH, "server.err"), "wb")
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    subprocess.Popen(cmd, shell=True, cwd=os.getcwd(), env=env, executable="/bin/bash", start_new_session=True, stdout=log_file, stderr=err_file)
+    print("Server started on %s:%d" % (HOST, PORT))
     
 
 def start_server_func(args):
@@ -105,7 +121,7 @@ def kill_task_func(args):
 @rpc_cmd
 def restart_task_func(args):
     server = jsonrpclib.Server(f"http://{HOST}:{PORT}")
-    ret_msg = server.restart_task(args.task)
+    ret_msg = server.restart_task(args.task, args.inplace)
     print(ret_msg)
 
 @rpc_cmd
@@ -114,16 +130,29 @@ def clean_task_func(args):
     ret_msg = server.clean_task()
     print(ret_msg)
 
+# @rpc_cmd
+# def follow_task_func(args):
+#     server = jsonrpclib.Server(f"http://{HOST}:{PORT}")
+#     ret_msg = server.follow_task(args.task)
+#     print(ret_msg)
+
+
 @rpc_cmd
 def follow_task_func(args):
     server = jsonrpclib.Server(f"http://{HOST}:{PORT}")
-    ret_msg = server.follow_task(args.task)
-    print(ret_msg)
+    if not server.task_exists(args.task):
+        print(f"Task {args.task} Not Found")
+        return
+    log_file_path = get_log_file_path(args.task)
+    
+    stop_func = lambda: not server.task_is_running(args.task)
+    follow(log_file_path, stop_func=stop_func)
+
 
 @rpc_cmd
 def log_task_func(args):
     server = jsonrpclib.Server(f"http://{HOST}:{PORT}")
-    ret_msg = server.log_task(args.task)
+    ret_msg = server.log_task(args.task, args.lines)
     print(ret_msg)
 
 @rpc_cmd
@@ -140,9 +169,7 @@ def shutdown_func(args):
 @rpc_cmd
 def get_status_func(args):
     server = jsonrpclib.Server(f"http://{HOST}:{PORT}")
-    ret_msg = server.get_status()
-    print(ret_msg)
-    # Format the output # TODO
+    format_print_task_status(server.get_status())
 
 
 
@@ -158,57 +185,60 @@ def get_status_func(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    
-    subparsers = parser.add_subparsers(help='operation')
+    parser.add_argument('-v', '--version', action='version',
+                    version='%(prog)s {version}'.format(version=__version__))
 
-    start_server_parser = subparsers.add_parser(name='start-server')
-    start_server_parser.add_argument('--daemon', action='store_true', help='run the server as a daemon')
+    subparsers = parser.add_subparsers(title='commands')
+
+    start_server_parser = subparsers.add_parser(name='start-server', help='Start the daemon server', description='Start the daemon server')
+    start_server_parser.add_argument('-d', '--daemon', action='store_true', help='run the server as a daemon')
     start_server_parser.set_defaults(func=start_server_func)
 
-    add_parser = subparsers.add_parser(name='add')
-    add_parser.add_argument('--cmd', required=True, help='command', type=str)
-    add_parser.add_argument('--mem', required=False, help='required memory (in MB)', type=int, default=0)
-    add_parser.add_argument('--path', required=False, help='working directory', type=str, default=os.getcwd())
-    add_parser.add_argument('--gpu', required=False, help='gpu device id list', type=str, default="")
-    add_parser.add_argument('--after', required=False, help='after task id list', type=str, default="")
-    
+    add_parser = subparsers.add_parser(name='add', help='Enqueue a task for execution', description='Enqueue a task for execution asd')
+    add_parser.add_argument('cmd', help='Command of task', type=str)
+    add_parser.add_argument('--mem', required=False, help='Required GPU memory (in MB)', type=int, default=0)
+    add_parser.add_argument('--path', required=False, help='Working directory. Default is the current directory', type=str, default=os.getcwd())
+    add_parser.add_argument('--gpu', required=False, help='Required GPU device id(s).', type=str, default="")
+    add_parser.add_argument('--after', required=False, help='Prerequist task(s)', type=str, default="")
     add_parser.set_defaults(func=add_task_func)
 
 
 
-    remove_parser = subparsers.add_parser(name='remove')
-    remove_parser.add_argument('--task', required=True, help='task id', type=int, default=-1)
+    remove_parser = subparsers.add_parser(name='remove', help='Remove a task from the queue', description='Remove a task from the queue')
+    remove_parser.add_argument('task', help='task id', type=int, default=-1)
     remove_parser.set_defaults(func=remove_task_func)
 
 
-    stash_parser = subparsers.add_parser(name='stash')
-    stash_parser.add_argument('--task', required=True, help='task id', type=int, default=-1)
-    stash_parser.set_defaults(func=stash_task_func)
+    # stash_parser = subparsers.add_parser(name='stash')
+    # stash_parser.add_argument('task', help='task id', type=int, default=-1)
+    # stash_parser.set_defaults(func=stash_task_func)
 
-    kill_parser = subparsers.add_parser(name='kill')
-    kill_parser.add_argument('--task', required=True, help='task id', type=int, default=-1)
+    kill_parser = subparsers.add_parser(name='kill', help='Kill a running task', description='Kill a running task')
+    kill_parser.add_argument('task', help='task id', type=int, default=-1)
     kill_parser.set_defaults(func=kill_task_func)
 
-    restart_parser = subparsers.add_parser(name='restart')
-    restart_parser.add_argument('--task', required=True, help='task id', type=int, default=-1)
+    restart_parser = subparsers.add_parser(name='restart', help='Restart a task', description='Restart a task')
+    restart_parser.add_argument('task', help='task id', type=int, default=-1)
+    restart_parser.add_argument('--inplace', action='store_true', help='restart the task in place')
     restart_parser.set_defaults(func=restart_task_func)
 
-    clean_parser = subparsers.add_parser(name='clean')
+    clean_parser = subparsers.add_parser(name='clean', help='Remove all success tasks from the queue', description='Remove all success tasks from the queue')
     clean_parser.set_defaults(func=clean_task_func)
 
-    follow_parser = subparsers.add_parser(name='follow')
-    follow_parser.add_argument('--task', required=True, help='task id', type=int, default=-1)
+    follow_parser = subparsers.add_parser(name='follow', help='Follow the output of a running task', description='Follow the output of a running task')
+    follow_parser.add_argument('task', help='task id', type=int, default=-1)
     follow_parser.set_defaults(func=follow_task_func)
 
-    log_parser = subparsers.add_parser(name='log')
-    log_parser.add_argument('--task', required=True, help='task id', type=int, default=-1)
+    log_parser = subparsers.add_parser(name='log', help='Display the output log of a task', description='Display the output log of a task')
+    log_parser.add_argument('task', help='task id', type=int, default=-1)
+    log_parser.add_argument('-l', '--lines', required=False, help='display last n lines', type=int, default=20)
     log_parser.set_defaults(func=log_task_func)
 
-    shutdown_parser = subparsers.add_parser(name='shutdown')
-    shutdown_parser.add_argument('--force', required=False, help='force shutdown', default=False, action='store_true')
+    shutdown_parser = subparsers.add_parser(name='shutdown', help='Remotely shutdown the daemon', description='Remotely shutdown the daemon')
+    shutdown_parser.add_argument('-f', '--force', required=False, help='force shutdown', default=False, action='store_true')
     shutdown_parser.set_defaults(func=shutdown_func)
 
-    get_status_parser = subparsers.add_parser(name='status')
+    get_status_parser = subparsers.add_parser(name='status', help='Display the status of the daemon', description='Display the status of the daemon')
     get_status_parser.set_defaults(func=get_status_func)
 
 

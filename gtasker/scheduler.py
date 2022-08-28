@@ -7,12 +7,14 @@ import threading
 import time
 import subprocess
 import json
-
+import sys
 import logging
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s %(thread)s %(funcName)s %(message)s"
 )
+
+os.environ["PYTHONUNBUFFERED"] = "1"
 
 class TaskScheduler:
     def __init__(self):
@@ -26,15 +28,10 @@ class TaskScheduler:
 
 
     def get_status(self):
-        # tasks status string
-        ret_str = f"Task Num: {len(self.tasks)}\n"
+        task_status_tuple_list = []
         for task_id, task in self.tasks.items():
-            if task.executed_proc is not None:
-                ret_str += f"{task} {task.status} ({task.executed_proc.pid})\n"
-            else:
-                ret_str += f"{task} {task.status}\n"
-        
-        return ret_str
+            task_status_tuple_list.append(task._get_status_tuple())
+        return task_status_tuple_list
 
     def add_task(self, cmd, req_memory, path, req_gpu_index, pre_reqt):
         logging.info(f"Add task: {cmd}")
@@ -159,14 +156,19 @@ class TaskScheduler:
         ret_msg = f"{len(success_task_ids)} Success Tasks Removed"
         return ret_msg
 
+    def task_is_running(self, task_id):
+        return task_id in self.tasks and self.tasks[task_id].status == TaskStatus.RUNNING
 
-    def follow_task(self, task_id):
+    def task_exists(self, task_id):
+        return task_id in self.tasks
+
+    def follow_task(self, task_id, callback=sys.stdout.write):
         logging.info(f"Follow task: {task_id}")
         if task_id in self.tasks:
             if self.tasks[task_id].status == TaskStatus.RUNNING:
                 task_log_file = self.tasks[task_id].log_file
                 stop_func = lambda: (task_id not in self.tasks or self.tasks[task_id].status != TaskStatus.RUNNING)
-                follow(task_log_file, stop_func=stop_func)
+                follow(task_log_file, stop_func=stop_func, callback=callback)
                 ret_msg = f"Task {task_id} Follow Done"
             else:
                 ret_msg = f"Task {task_id} Not Running"
@@ -174,15 +176,17 @@ class TaskScheduler:
             ret_msg = f"Task {task_id} Not Found"
         
         return ret_msg
+    
+    
 
-    def log_task(self, task_id):
+    def log_task(self, task_id, lines=10):
         logging.info(f"Log task: {task_id}")
         if task_id in self.tasks:
-            if self.tasks[task_id].status == TaskStatus.RUNNING:
-                task_log_file = self.tasks[task_id].log_file
-                ret_msg = read_last_lines(task_log_file, 10)
+            task_log_file = self.tasks[task_id].log_file
+            if task_log_file is not None:
+                ret_msg = read_last_lines(task_log_file, lines)
             else:
-                ret_msg = f"Task {task_id} Not Running"
+                ret_msg = f"Task {task_id} Log File Not Found"
         else:
             ret_msg = f"Task {task_id} Not Found"
         
