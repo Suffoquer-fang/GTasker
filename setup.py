@@ -1,7 +1,9 @@
 from setuptools import setup, find_packages
 from gtasker import __version__
-# with open('./requirements.txt') as f:
-#     requirements = f.readlines()
+from pathlib import Path 
+
+this_directory = Path(__file__).parent 
+long_description = (this_directory / "README.md").read_text()
 
 requirements = [
     "jsonrpclib==0.2.1",
@@ -10,8 +12,6 @@ requirements = [
     "psutil==5.9.0",
     "rich==12.4.1",
 ]
-  
-long_description = 'GTasker Demo Package'
   
 setup(
         name ='gtasker',

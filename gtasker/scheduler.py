@@ -33,16 +33,23 @@ class TaskScheduler:
             task_status_tuple_list.append(task._get_status_tuple())
         return task_status_tuple_list
 
-    def add_task(self, cmd, req_memory, path, req_gpu_index, pre_reqt):
+    def add_task(self, cmd, req_memory, path, req_gpu_index, pre_reqt, env):
         logging.info(f"Add task: {cmd}")
         self.mutex.acquire()
         logging.info(f"Add Task {self.cur_id}")
-        self.cur_id += 1
+        
         
         
         pre_reqt = parse_str_to_list(pre_reqt, int)
         req_gpu_index = parse_str_to_list(req_gpu_index, int)
 
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            ret_msg = f"Path {path} Not Found"
+            self.mutex.release()
+            return ret_msg
+
+        self.cur_id += 1
         task = Task(
             id=self.cur_id,
             cmd=cmd,
@@ -50,7 +57,8 @@ class TaskScheduler:
             path=path,
             req_gpu_index=req_gpu_index,
             pre_reqt=pre_reqt,
-            priority=0
+            priority=0,
+            env=env
         )
         self.tasks[self.cur_id] = task
 

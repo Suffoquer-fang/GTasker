@@ -24,15 +24,17 @@ class Task:
         req_gpu_index: list = [],       # required GPU index, default is empty, means any GPU is OK
         pre_reqt: list = [],            # prerequisite tasks, default is empty, means no prerequisite
         priority: int = 0,              # priority, default is 0, higher priority task will be executed first
+        env: dict = {},                 # environment variables, default is empty
     ) -> None:
         self.id = id
         self.cmd = cmd 
         self.req_memory = req_memory
         self.req_gpu_index = req_gpu_index
         self.pre_reqt = pre_reqt
-        self.path = os.path.abspath(path)
+        self.path = path
 
         self.priority = priority
+        self.env = env
 
 
         # runtime variables
@@ -83,6 +85,7 @@ class Task:
         log_file = open(self.log_file, "ab")
 
         subprocess_env = os.environ.copy()
+        subprocess_env.update(self.env)
         if assigned_gpu is not None:
             subprocess_env["CUDA_VISIBLE_DEVICES"] = f"{assigned_gpu}"
         subprocess_env["PYTHONUNBUFFERED"] = "1"
