@@ -125,7 +125,8 @@ class TaskScheduler:
                 path=self.tasks[task_id].path,
                 req_gpu_index=self.tasks[task_id].req_gpu_index,
                 pre_reqt=self.tasks[task_id].pre_reqt,
-                priority=self.tasks[task_id].priority
+                priority=self.tasks[task_id].priority,
+                env=self.tasks[task_id].env
             )
             if in_place:
                 self.tasks[task_id] = new_task

@@ -83,5 +83,10 @@ To look at the output log of a task, you can use `gta log {task_id}` or `gta fol
 This repo is inspired by [pueue](https://github.com/Nukesor/pueue), sincerely grateful for it.
 
 
+## TODO
 
+- [x] restart task would copy env
+- [ ] scheduler verify free gpu mem
+- [ ] marshal / unmarshal
+- [ ] init config (rpc host / port)
 
