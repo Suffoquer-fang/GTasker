@@ -5,6 +5,7 @@ import os
 import subprocess
 import json
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -47,6 +48,7 @@ class GPUTracker:
         for index, gpu in enumerate(self.gpu_info["gpus"]):
             for proc in gpu["processes"]:
                 busy_pids.add(proc["pid"])
+                logging
 
         # for each booked process, check if any of its children is in the busy memory
         # if so, remove the process from the booked memory
@@ -62,7 +64,11 @@ class GPUTracker:
         
         for index, pid in pids_to_remove:
             logging.debug(f"Remove {pid}, {index} from the booked memory")
+            logging.debug(f"Before: {self.booked_memory[index]}")
+            logging.debug(f"Free: {self.free_memory[index]}")
             del self.booked_memory[index][pid]
+
+        
         
         
 

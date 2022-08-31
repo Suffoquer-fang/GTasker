@@ -10,7 +10,7 @@ from appdirs import user_data_dir, site_data_dir
 # GTASKER_LOG_PATH = './gtasker_logs/'
 GTASKER_LOG_PATH = user_data_dir('gtasker', 'suffoquer')
 GTASKER_SERVER_LOG_PATH = os.path.join(GTASKER_LOG_PATH, 'server/')
-SERVER_INTERVAL = 2
+SERVER_INTERVAL = 5
 HOST = "127.0.0.1"
 PORT = 6789
 
