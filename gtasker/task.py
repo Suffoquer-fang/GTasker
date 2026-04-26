@@ -21,20 +21,20 @@ class Task:
         cmd: str,                       # command to be executed
         req_memory: int,                # required GPU memory in MB
         path: str,                      # working directory, default is current directory
-        req_gpu_index: list = [],       # required GPU index, default is empty, means any GPU is OK
-        pre_reqt: list = [],            # prerequisite tasks, default is empty, means no prerequisite
+        req_gpu_index: list = None,     # required GPU index, default is empty, means any GPU is OK
+        pre_reqt: list = None,          # prerequisite tasks, default is empty, means no prerequisite
         priority: int = 0,              # priority, default is 0, higher priority task will be executed first
-        env: dict = {},                 # environment variables, default is empty
+        env: dict = None,               # environment variables, default is empty
     ) -> None:
         self.id = id
         self.cmd = cmd 
         self.req_memory = req_memory
-        self.req_gpu_index = req_gpu_index
-        self.pre_reqt = pre_reqt
+        self.req_gpu_index = req_gpu_index or []
+        self.pre_reqt = pre_reqt or []
         self.path = path
 
         self.priority = priority
-        self.env = env
+        self.env = env or {}
 
 
         # runtime variables
@@ -65,56 +65,53 @@ class Task:
 
 
     def spawn(self, mutex, assigned_gpu=None, gpu_tracker=None):
-        # lock
-        mutex.acquire()
-        self.assigned_gpu = assigned_gpu
-        self.status = TaskStatus.RUNNING
-        self.start_time = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
+        with mutex:
+            self.assigned_gpu = assigned_gpu
+            self.status = TaskStatus.RUNNING
+            self.start_time = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
 
-        self.log_file = get_log_file_path(self.id)
-        
-        log_file = open(self.log_file, "w")
-        log_file.write(self._meta_str())
-        log_file.flush()
-        log_file.close()
+            self.log_file = get_log_file_path(self.id)
+            os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
 
-        # execute
-        cmd = pack_command(self.cmd, None)
-        print('Executing: {}'.format(cmd))
-        
-        log_file = open(self.log_file, "ab")
+            log_file = open(self.log_file, "w")
+            log_file.write(self._meta_str())
+            log_file.flush()
+            log_file.close()
 
-        subprocess_env = os.environ.copy()
-        subprocess_env.update(self.env)
-        if assigned_gpu is not None:
-            subprocess_env["CUDA_VISIBLE_DEVICES"] = f"{assigned_gpu}"
-        subprocess_env["PYTHONUNBUFFERED"] = "1"
-        proc = subprocess.Popen(cmd, shell=True, cwd=self.path, stdout=log_file, stderr=log_file, bufsize=1, start_new_session=True, env = subprocess_env, executable="/bin/bash")
+            # execute
+            cmd = pack_command(self.cmd, None)
+            print('Executing: {}'.format(cmd))
 
-        self.executed_proc = proc
+            log_file = open(self.log_file, "ab")
 
-        if assigned_gpu is not None and gpu_tracker is not None:
-            gpu_tracker.book_memory(self.assigned_gpu, self.req_memory, proc.pid)
+            subprocess_env = os.environ.copy()
+            subprocess_env.update(self.env)
+            if assigned_gpu is not None:
+                subprocess_env["CUDA_VISIBLE_DEVICES"] = f"{assigned_gpu}"
+            subprocess_env["PYTHONUNBUFFERED"] = "1"
+            proc = subprocess.Popen(cmd, shell=True, cwd=self.path, stdout=log_file, stderr=log_file, bufsize=1, start_new_session=True, env = subprocess_env, executable="/bin/bash")
 
-        mutex.release()
+            self.executed_proc = proc
+
+            if assigned_gpu is not None and gpu_tracker is not None:
+                gpu_tracker.book_memory(self.assigned_gpu, self.req_memory, proc.pid)
 
         exit_code = self.executed_proc.wait()
 
         log_file.close()
 
-        mutex.acquire()
-        self.end_time = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
+        with mutex:
+            self.end_time = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
 
-        if assigned_gpu is not None and gpu_tracker is not None:
-            gpu_tracker.unbook_memory(assigned_gpu, proc.pid)
-        
-        if exit_code == 0:
-            self.status = TaskStatus.SUCCESS
-        elif exit_code == -9:
-            self.status = TaskStatus.KILLED
-        else:
-            self.status = TaskStatus.FAILED
-        mutex.release()
+            if assigned_gpu is not None and gpu_tracker is not None:
+                gpu_tracker.unbook_memory(assigned_gpu, proc.pid)
+
+            if exit_code == 0:
+                self.status = TaskStatus.SUCCESS
+            elif exit_code == -9:
+                self.status = TaskStatus.KILLED
+            else:
+                self.status = TaskStatus.FAILED
         
         log_file = open(self.log_file, "a+")
         log_file.write("\n"*3 + self._ending_str())
@@ -210,10 +207,8 @@ def ls_task():
         id=4,
         cmd="ls",
         req_memory=0,
-        path="/home/fangyan/Workspace/ColBERT/",
+        path=os.getcwd(),
         req_gpu_index=[],
         pre_reqt=[],
         priority=0
     )
-
-

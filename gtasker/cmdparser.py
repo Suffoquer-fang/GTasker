@@ -98,7 +98,6 @@ def rpc_cmd(func):
 def add_task_func(args):
     server = jsonrpclib.Server(f"http://{HOST}:{PORT}")
     env = os.environ.copy()
-    print("env: %s" % env["_"])
     ret_msg = server.add_task(args.cmd, args.mem, args.path, args.gpu, args.after, env)
     print(ret_msg)
 

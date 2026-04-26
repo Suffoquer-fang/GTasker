@@ -30,4 +30,3 @@ def test_parse_str_to_list():
     assert parse_str_to_list(str_, int) == []
 
 # test_get_children_pids()
-test_parse_str_to_list()

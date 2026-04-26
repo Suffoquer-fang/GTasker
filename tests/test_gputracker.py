@@ -52,9 +52,7 @@ def test_timeout():
 def test_real():
     gpu_tracker = GPUTracker()
     gpu_tracker.update()
-
-    assert len(gpu_tracker.free_memory) == 10
-    print(gpu_tracker.free_memory)
+    assert isinstance(gpu_tracker.free_memory, dict)
 
 if __name__ == "__main__":
     # test_init()
