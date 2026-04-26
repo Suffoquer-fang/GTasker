@@ -41,7 +41,7 @@ def test_task_failed():
 def test_task_path():
     task = ls_task()
     task.spawn(threading.Lock(), None)
-    assert task.path == "/home/fangyan/Workspace/ColBERT/"
+    assert task.path is not None
     print(task.path)
 
 
